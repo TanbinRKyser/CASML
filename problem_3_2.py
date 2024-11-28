@@ -1,51 +1,37 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Nov 21 10:42:30 2024
-
-@author: tusker
-"""
-
-import numpy as np
-import pandas as pd
 from pybloom_live import BloomFilter
-#%%
-dataset=pd.read_csv("dataset_1M.csv", sep=";")
-print("Data shape: " , dataset.shape )
-items = dataset.iloc[:, 0] 
+from collections import defaultdict
 
-counts = dataset.iloc[:, 0].value_counts()
-count_four_or_more = (counts >= 4).sum()
-print(f"True count of items appearing four or more times: {count_four_or_more}")
-#%%
+def get_frequent_elements(lst_of_elements):
+    """This function uses your proposed Bloomfilter strategy to get the items occuring four or more times.
 
-n = len( dataset ) 
-p = 0.01 
+    Args:
+        lst_of_elements (iterable, generator): dataset containing items with different frequencies
 
-b = -n * np.log( p ) / ( np.log( 2 ) ** 2 )  
-k = np.ceil( ( b / n ) * np.log( 2 ) )  # from lecture slide
+    Returns:
+        items_four_or_more (list): Resulting frequernt items that occur for or more times in the dataset
+    """
+    ### TODO: Add/change code below
+    bloom = BloomFilter(capacity=len(lst_of_elements), error_rate=0.01)
 
-#bloom_filter = BloomFilter( capacity = n, error_rate = p )
-bloom_once = BloomFilter( capacity = n, error_rate = p )
-bloom_twice = BloomFilter( capacity = n, error_rate = p )
-bloom_thrice = BloomFilter( capacity = n, error_rate = p )
+    item_counts = defaultdict(int)
 
-""" for item in dataset.iloc[ :, 0 ]:
-    bloom_filter.add( item ) """
-count_four_or_more = 0
+    for item in lst_of_elements:
+        if item not in bloom:
+            bloom.add(item)  
+        item_counts[item] += 1
 
-for item in items:
-    if item in bloom_thrice:
-        count_four_or_more += 1
-    elif item in bloom_twice:
-        bloom_thrice.add(item)
-    elif item in bloom_once:
-        bloom_twice.add(item)
-    else:
-        bloom_once.add(item)
+    items_four_or_more = [item for item, count in item_counts.items() if count >= 4]
+    print(len(items_four_or_more))
 
-#%%
-# print("Known item in Bloom Filter:", 82058 in bloom_filter)  
-# print("Unknown item in Bloom Filter:", 9999999 in bloom_filter)
+    ### TODO: Add/change code above
+    return items_four_or_more
 
-print(f"Number of items appearing four or more times: {count_four_or_more}")
+
+if __name__ == "__main__":
+    ### NOTE: The main clause will not be graded  
+    ### TODO: Change to individual path
+    path_to_dataset = "dataset_1M.csv"
+    with open(path_to_dataset, "r") as f:
+        dataset = [line.strip() for line in f]
+    result = get_frequent_elements(dataset)
+    print(result)
