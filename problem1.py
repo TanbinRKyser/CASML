@@ -1,73 +1,66 @@
-import numpy as np
+from pyspark import SparkContext
+# math library for sqrt
+import math
 
-
-def expected_samples(n):
-    '''Returns theoretical value for number of samples '''
-    
+def summaryStatistics(file, num_cores):
+    bins = 10
     ### TODO: Add/Change code below
-    #num_samples = None # count of samples taken until the set is full
+    ### NOTE: Use the variable sc to create the SparkContext
+    # sc = None
+    # sc = SparkContext("SummaryStatistics",master=f"local[{num_cores}]")
+    sc = SparkContext.getOrCreate()
 
-    num_samples = sum( 1 / i for i in range( 1, n + 1 ) ) * n ## ratio: 1.0010
+    rdd = sc.textFile( file )\
+        .map( lambda l: l.split('\t') )\
+            .map( lambda x: float( x[ 2 ] ) )
 
-    # EM constant
-    # gamma = 0.5772156649 
-    # harmonic_nummer = np.log( n ) + gamma
-    # num_samples = harmonic_nummer * n 
-    # 
-    # ## ratio: 1.0009
+    count = rdd.count()
+    total_sum = rdd.reduce( lambda a,b: a + b )
+    mean = total_sum / count
+
+    ####### Standard deviation
+    #### sum of squared (x - mean) values
+    var = rdd.map( lambda x : ( x - mean)**2 ).reduce( lambda a,b: a + b ) / count
+    std = math.sqrt( var )
+
+
+    total_max = rdd.reduce( lambda a,b : a if a > b else b )
+    total_min = rdd.reduce( lambda a,b : a if a < b else b )
+
+    ##### HISTOGRAM ####
+    # bins = 10
+    bin_size = ( total_max - total_min ) / bins
+
+    def assign_val_to_bins( value ):
+        index = min( int( ( value - total_min ) / bin_size ), bins - 1 )
+        return ( index, 1 )
+
+    histogram = rdd.map( assign_val_to_bins ).reduceByKey( lambda a, b: a + b ).collect()
+    histogram = sorted( histogram, key = lambda x: x[0] )
+    
+    
+    ### MEDIAN ###
+    sorted_rdd = rdd.sortBy( lambda x: x )
+    m_index = count//2
+
+    if count % 2 == 0 :
+        medians = sorted_rdd.zipWithIndex().filter( lambda x : x[1] in (m_index-1, m_index)).map(lambda x: x[0]).collect()
+        median = sum( medians ) / 2
+
+    else:
+        median = sorted_rdd.zipWithIndex().filter( lambda x : x[1] == m_index ).map( lambda x : x[0] ).collect()[0]
     ### TODO: Add/Change code above
-    
-    return np.ceil(num_samples)
-
-
-
-def experimental_samples(n):
-    '''Runs the experiment until the set 1,...,n is full. Returns the number of samples needed'''
-
-    ### TODO: Add/Change code below
-    #num_samples = None # count of samples taken until the set is full
-    unique_items = set() 
-    num_samples = 0
-
-    while len( unique_items ) < n:
-        #num_samples += 1
-        unique_items.add( np.random.randint( 1, n + 1 ) )
-        num_samples += 1
-    ### TODO: Add/Change code above
-    
-    return num_samples
-
-def run_simulations(num_simulations, n, seed):
-    
-    np.random.seed(seed)
-    
-    ### TODO: Add/Change code below
-    #avg_samples = None
-    #total_samples = sum( experimental_samples( n   ) for _ in range( num_simulations )  )
-    total_samples = 0
-    
-    for _ in range( num_simulations ):
-        total_samples += experimental_samples( n )
-    
-    #print(f'tot_samples {total_samples}')
-    
-    avg_samples = total_samples / num_simulations
-    ### TODO: Add/Change code above
-    
-    return np.ceil(avg_samples)
+    ### NOTE: It's best practice to specifically close the SparkContext
+    sc.stop()
+    return mean, std, total_max, total_min, histogram, median
+    # return mean, std, total_max, total_min, median
 
 
 if __name__ == "__main__":
-    ### NOTE: The main clause will not be graded, change for your own convenience  
+    
+    ### NOTE: The main clause will not be graded, change for your own convenience , don't delete the main clause completely
     ### TODO: Add/Change code below
-
-    n = 1000
-    num_simulations = 100
-    
-    expected_value = expected_samples( n )
-    simulated_value = run_simulations( num_simulations, n, 42 )
-    
-    print(expected_value/simulated_value)
-    #print(f"exp_val    : {ev}")
-    #print(f"sum_val: {sv}")
-    #print(f"ratio : {ev / sv}")
+    workers = 4
+    file = "data-assignment-8-1M.dat"
+    stats = summaryStatistics(file, workers)
+    print(stats)
